@@ -20,7 +20,9 @@ library(tensorflow)
 #install_keras() 
 
 
-#Cleaning Data
+# ---------------------------------------------------------
+# Cleaning Data
+# ---------------------------------------------------------
 Cropdata <- read.csv("EcoCrop_DB.csv")
 Cropdata <- subset(Cropdata, select = -c(AUTH, EcoPortCode, FAMNAME, SYNO))
 
@@ -31,35 +33,31 @@ factor_cols <- c("LIFO","HABI","LISPA","PHYS","PLAT","LIOPMN","LIOPMX",
 
 Cropdata[factor_cols] <- lapply(Cropdata[factor_cols], factor)
 
-# ---- NEW PART: keep only first CAT entry and convert to factor ----
+# ---- Keep only first CAT entry and convert to factor ----
 Cropdata <- Cropdata %>%
   mutate(
     CAT = ifelse(is.na(CAT) | CAT == "", NA,
                  trimws(strsplit(CAT, ",") |> sapply(`[`, 1)))
   ) %>%
   mutate(CAT = factor(CAT))
-# -------------------------------------------------------------------
 
-Crop_noCAT <- Cropdata %>% 
-  filter(is.na(CAT) | CAT == "")
+Crop_noCAT <- Cropdata %>% filter(is.na(CAT) | CAT == "")
+Crop_withCAT <- Cropdata %>% filter(!(is.na(CAT) | CAT == ""))
 
-Crop_withCAT <- Cropdata %>% 
-  filter(!(is.na(CAT) | CAT == ""))
-
-# Since CAT now contains only one category, no need to split/unnest
-Crop_long <- Crop_withCAT %>%
-  mutate(Category = CAT)
+Crop_long <- Crop_withCAT %>% mutate(Category = CAT)
 
 Cropsfinal <- Crop_long %>%
   mutate(value = 1) %>%
   pivot_wider(names_from = Category, values_from = value, values_fill = 0)
 
-Cropsfinal <- subset(Cropsfinal, select = -c(Column1))
+# Remove Column1 if present
+Cropsfinal <- Cropsfinal[, setdiff(names(Cropsfinal), "Column1")]
+
 table(Cropsfinal$CAT)
 
-#----------------------------------------------------------------
-#Assigning Yields
-
+# ---------------------------------------------------------
+# Assigning Yields
+# ---------------------------------------------------------
 faostat <- read.csv("FAOSTAT_data_en_8-18-2025.csv")
 
 # ---------------------------------------------------------
@@ -143,14 +141,13 @@ category_map <- tribble(
 )
 
 # ---------------------------------------------------------
-# 2. JOIN + ASSIGN "other" TO ALL UNLISTED CROPS
+# 2. JOIN (no 'other' fallback)
 # ---------------------------------------------------------
 faostat_cat <- faostat %>%
-  left_join(category_map, by = "Item") %>%
-  mutate(
-    Category = ifelse(is.na(Category), "other", Category)
-  )
+  left_join(category_map, by = "Item")
+
 table(faostat_cat$Category)
+
 # ---------------------------------------------------------
 # 3. CALCULATE CATEGORY YIELDS
 # ---------------------------------------------------------
@@ -173,9 +170,9 @@ forage_row <- tibble(
 )
 
 category_yields_final <- bind_rows(category_yields, forage_row)
-category_yields_final
+
 # ---------------------------------------------------------
-# 5. CATEGORY MAP FOR Cropsfinal
+# 5. CATEGORY MAP FOR Cropsfinal (no 'other')
 # ---------------------------------------------------------
 category_cols <- names(Cropsfinal)[51:64]
 
@@ -188,29 +185,24 @@ category_map <- c(
   "materials"               = "materials",
   "medicinals & aromatic"   = "medicinal_aromatic",
   "forage/pasture"          = "forage_pasture",
-  "cover crop"              = "other",
-  "environmental"           = "other",
-  "forest/wood"             = "other",
-  "ornamentals/turf"        = "other"
+  "cover crop"              = "forage_pasture",
+  "environmental"           = "forage_pasture",
+  "forest/wood"             = "forage_pasture",
+  "ornamentals/turf"        = "forage_pasture"
 )
-# ---------------------------------------------------------
-# 6. ADD "other" COLUMN TO Cropsfinal IF MISSING
-# ---------------------------------------------------------
-if (!"other" %in% names(Cropsfinal)) {
-  Cropsfinal$other <- 0
-}
 
 # ---------------------------------------------------------
-# 7. LOOKUP TABLE
+# 6. LOOKUP TABLE
 # ---------------------------------------------------------
 yield_lookup <- setNames(category_yields_final$mean_yield_t_ha,
                          category_yields_final$Category)
 
+fallback_yield <- mean(category_yields_final$mean_yield_t_ha, na.rm = TRUE)
+
 # ---------------------------------------------------------
-# 8. ASSIGN YIELDS TO Cropsfinal
+# 7. ASSIGN YIELDS (no 'other' logic)
 # ---------------------------------------------------------
 Cropsfinal$assigned_yield_t_ha <- NA_real_
-fallback_yield <- mean(category_yields_final$mean_yield_t_ha, na.rm = TRUE)
 
 for (i in seq_len(nrow(Cropsfinal))) {
   
@@ -219,15 +211,9 @@ for (i in seq_len(nrow(Cropsfinal))) {
   faostat_cats <- category_map[active_categories]
   faostat_cats <- faostat_cats[!is.na(faostat_cats)]
   
-  # If no categories active → assign to 'other'
+  # If no categories active → fallback yield
   if (length(faostat_cats) == 0) {
-    Cropsfinal$other[i] <- 1
-    faostat_cats <- "other"
-  }
-  
-  # If 'other' is present → force fallback yield
-  if ("other" %in% faostat_cats) {
-    Cropsfinal$assigned_yield_t_ha[i] <- NA
+    Cropsfinal$assigned_yield_t_ha[i] <- fallback_yield
     next
   }
   
@@ -235,13 +221,10 @@ for (i in seq_len(nrow(Cropsfinal))) {
   yields <- yield_lookup[faostat_cats]
   Cropsfinal$assigned_yield_t_ha[i] <- mean(yields, na.rm = TRUE)
 }
-fallback_yield
-table(Cropsfinal$CAT)
-# ---------------------------------------------------------
-# 9. FALLBACK YIELD (used for "other")
-# ---------------------------------------------------------
 
-
+# ---------------------------------------------------------
+# 8. FINAL OUTPUT
+# ---------------------------------------------------------
 cropsfull <- Cropsfinal %>%
   mutate(
     assigned_yield_t_ha = ifelse(
@@ -250,6 +233,7 @@ cropsfull <- Cropsfinal %>%
       assigned_yield_t_ha
     )
   )
+
 
 #--------------------------------------------------------------------------
 #Multilinear Regression and Reverse
@@ -1031,16 +1015,16 @@ summary_results
 #Catboost, Random Forest, Ranger, Neural Network
 
 # --- lookup vector ---
-yield_lookup <- c(
-  cereals = 2.754618,
-  fruits_nuts = 19.849769,
-  materials = 1.735017,
-  medicinal_aromatic = 5.787840,
-  pulses = 1.016057,
-  roots_tubers = 12.314667,
-  vegetables = 26.440667,
-  forage_pasture = 17.170000
-)
+#yield_lookup <- c(
+ # cereals = 2.754618,
+ # fruits_nuts = 19.849769,
+ # materials = 1.735017,
+ # medicinal_aromatic = 5.787840,
+ # pulses = 1.016057,
+ # roots_tubers = 12.314667,
+ # vegetables = 26.440667,
+ # forage_pasture = 17.170000
+#)
 
 map_with_tol <- function(x, lookup, tol = 1e-3) {
   sapply(x, function(v) {
@@ -1048,9 +1032,10 @@ map_with_tol <- function(x, lookup, tol = 1e-3) {
     if (length(idx) == 1) names(lookup)[idx] else NA
   })
 }
-
+y_true
 
 mapped_categories <- map_with_tol(y_true, yield_lookup)
+mapped_categories
 
 df <- data.frame(
   mapped_categories = mapped_categories,
