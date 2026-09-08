@@ -2,18 +2,11 @@ Dataset Download Instructions
 
 There are 2 datasets needed for the code to run
 
-
-
 Ecocrop Dataset
-
-1. Download this dataset https://github.com/OpenCLIM/ecocrop/blob/main/EcoCrop\_DB\_secondtrim.csv
-2. Remove first 3 columns (empty, level\_0 and Index)
-3. Save as EcoCrop\_DB
-
-
+1. Go to https://github.com/OpenCLIM/ecocrop.git
+2. Download EcoCrop_DB.csv
 
 FAOSTAT Dataset
-
 1. Go to this link https://www.fao.org/faostat/en/#data/QCL
 2. In the top left box, click on regions and select 'World+(Total)'
 3. In the top right box, select 'Yield'
