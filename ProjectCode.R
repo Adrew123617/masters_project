@@ -20,6 +20,7 @@ library(keras)
 library(keras3)
 library(tensorflow)
 library(kernlab)
+options(renv.config.sandbox.enabled = FALSE)
 #install_keras() 
 set.seed(123)
 #renv::init()
@@ -59,7 +60,6 @@ Cropsfinal <- Crop_long %>%
 Cropsfinal <- Cropsfinal[, setdiff(names(Cropsfinal), "Column1")]
 
 table(Cropsfinal$CAT)
-
 # ---------------------------------------------------------
 # Assigning Yields
 # ---------------------------------------------------------
@@ -193,7 +193,8 @@ category_map <- c(
   "cover crop"              = "forage_pasture",
   "environmental"           = "forage_pasture",
   "forest/wood"             = "forage_pasture",
-  "ornamentals/turf"        = "forage_pasture"
+  "ornamentals/turf"        = "forage_pasture",
+  "other" = "forage_pasture"
 )
 
 # ---------------------------------------------------------
@@ -201,9 +202,7 @@ category_map <- c(
 # ---------------------------------------------------------
 yield_lookup <- setNames(category_yields_final$mean_yield_t_ha,
                          category_yields_final$Category)
-
 fallback_yield <- mean(category_yields_final$mean_yield_t_ha, na.rm = TRUE)
-
 # ---------------------------------------------------------
 # 7. ASSIGN YIELDS (no 'other' logic)
 # ---------------------------------------------------------
@@ -213,19 +212,24 @@ for (i in seq_len(nrow(Cropsfinal))) {
   
   row_vals <- Cropsfinal[i, category_cols]
   active_categories <- names(row_vals)[row_vals == 1]
+  
+  # Map to FAOSTAT categories
   faostat_cats <- category_map[active_categories]
+  
+  # REMOVE NA categories so they never enter yield_lookup
   faostat_cats <- faostat_cats[!is.na(faostat_cats)]
   
-  # If no categories active → fallback yield
+  # If nothing left → fallback
   if (length(faostat_cats) == 0) {
     Cropsfinal$assigned_yield_t_ha[i] <- fallback_yield
     next
   }
   
-  # Otherwise compute mean of category yields
+  # Otherwise compute mean yield
   yields <- yield_lookup[faostat_cats]
   Cropsfinal$assigned_yield_t_ha[i] <- mean(yields, na.rm = TRUE)
 }
+
 
 # ---------------------------------------------------------
 # 8. FINAL OUTPUT
@@ -238,8 +242,10 @@ cropsfull <- Cropsfinal %>%
       assigned_yield_t_ha
     )
   )
-
-
+yield_lookup <- yield_lookup[!is.na(names(yield_lookup))]
+table(yield_lookup)
+            
+table(cropsfull$assigned_yield_t_ha)
 #--------------------------------------------------------------------------
 #Multilinear Regression and Reverse
 Cropsfinalnumeric <- Cropsfinal %>%
