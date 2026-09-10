@@ -1,3 +1,5 @@
+library(renv)
+renv::restore()
 library(dplyr)
 library(tidyr)
 library(stringr)
@@ -17,8 +19,11 @@ library(catboost)
 library(keras)
 library(keras3)
 library(tensorflow)
+library(kernlab)
 #install_keras() 
-
+set.seed(123)
+#renv::init()
+#renv::snapshot()
 
 # ---------------------------------------------------------
 # Cleaning Data
