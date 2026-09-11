@@ -1,4 +1,4 @@
-Dataset Download Instructions
+Download Instructions
 
 There are 2 datasets needed for the code to run
 
@@ -13,6 +13,8 @@ FAOSTAT Dataset
 4. In the bottom left box, select 'Crops, primary > (List)'
 5. In the bottom right box, Select '2023'
 6. Download the data and rename it FAOSTAT\_data\_en\_8-18-2025
+
+**The R version needs to be 4.3.2 or it won't work**
 
 Package Library
 1. Download the library from https://liveplymouthac-my.sharepoint.com/:f:/g/personal/amy_drew_students_plymouth_ac_uk/IgDQ27dpdDjQSolW29tzW-tNAcJ4e2VSilG8nnTwF-PjWfs?e=nW72rZ
