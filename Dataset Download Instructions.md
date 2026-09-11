@@ -14,3 +14,7 @@ FAOSTAT Dataset
 5. In the bottom right box, Select '2023'
 6. Download the data and rename it FAOSTAT\_data\_en\_8-18-2025
 
+Package Library
+1. Download the library from https://liveplymouthac-my.sharepoint.com/:f:/g/personal/amy_drew_students_plymouth_ac_uk/IgDQ27dpdDjQSolW29tzW-tNAcJ4e2VSilG8nnTwF-PjWfs?e=nW72rZ
+2. Extract it to the code's folder
+3. If necessary change where the folder is on line 2 so it says .libPaths("library location here")
